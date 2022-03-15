@@ -461,7 +461,8 @@ esp_err_t uart_set_tx_idle_num(uart_port_t uart_num, uint16_t idle_num);
  *     - ESP_FAIL Parameter error
  */
 esp_err_t uart_param_config(uart_port_t uart_num, const uart_config_t *uart_config);
-
+esp_err_t uart_param_config_no_flush(uart_port_t uart_num, const uart_config_t *uart_config);
+ 
 /**
  * @brief Configure UART interrupts.
  *

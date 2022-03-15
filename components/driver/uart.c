@@ -734,7 +734,7 @@ esp_err_t uart_set_tx_idle_num(uart_port_t uart_num, uint16_t idle_num)
     return ESP_OK;
 }
 
-esp_err_t uart_param_config(uart_port_t uart_num, const uart_config_t *uart_config)
+esp_err_t uart_param_config_no_flush(uart_port_t uart_num, const uart_config_t *uart_config)
 {
     ESP_RETURN_ON_FALSE((uart_num < UART_NUM_MAX), ESP_FAIL, UART_TAG, "uart_num error");
     ESP_RETURN_ON_FALSE((uart_config), ESP_FAIL, UART_TAG, "param null");
@@ -757,6 +757,19 @@ esp_err_t uart_param_config(uart_port_t uart_num, const uart_config_t *uart_conf
     uart_hal_set_tx_idle_num(&(uart_context[uart_num].hal), UART_TX_IDLE_NUM_DEFAULT);
     uart_hal_set_hw_flow_ctrl(&(uart_context[uart_num].hal), uart_config->flow_ctrl, uart_config->rx_flow_ctrl_thresh);
     UART_EXIT_CRITICAL(&(uart_context[uart_num].spinlock));
+    return ESP_OK;
+}
+
+esp_err_t uart_param_config(uart_port_t uart_num, const uart_config_t *uart_config)
+{
+    esp_err_t err = uart_param_config_no_flush(uart_num, uart_config);
+
+    if (err != ESP_OK) {
+        return err;
+    }
+
+    // The module reset do not reset TX and RX memory.
+    // reset FIFO to avoid garbage data remained in the FIFO.
     uart_hal_rxfifo_rst(&(uart_context[uart_num].hal));
     uart_hal_txfifo_rst(&(uart_context[uart_num].hal));
     return ESP_OK;
@@ -922,9 +935,9 @@ static void UART_ISR_ATTR uart_rx_intr_handler_default(void *param)
                     UART_EXIT_CRITICAL_ISR(&(uart_context[uart_num].spinlock));
                 }
             }
-        } else if ((uart_intr_status & UART_INTR_RXFIFO_TOUT)
-                   || (uart_intr_status & UART_INTR_RXFIFO_FULL)
-                   || (uart_intr_status & UART_INTR_CMD_CHAR_DET)
+        } else if ((uart_intr_status & (UART_INTR_RXFIFO_TOUT | UART_INTR_RXFIFO_FULL | UART_INTR_CMD_CHAR_DET ))
+                   || ( (uart_intr_status & UART_INTR_BRK_DET)
+                    && (uart_ll_get_rxfifo_len(uart_context[uart_num].hal.dev) > 0) ) ) {
                   ) {
             if (pat_flg == 1) {
                 uart_intr_status |= UART_INTR_CMD_CHAR_DET;
